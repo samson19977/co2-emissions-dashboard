@@ -161,7 +161,7 @@ st.markdown("""
 def load_data():
     try:
         # Load from local data folder
-        df = pd.read_csv("data/co2_Emission_Africa.csv")
+        df = pd.read_csv("co2_Emission_Africa.csv")
         df.columns = df.columns.str.strip()
         
         # Ensure numeric columns are properly converted
