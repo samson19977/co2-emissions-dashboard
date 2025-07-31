@@ -1,756 +1,633 @@
-import os
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import MinMaxScaler
+from prophet import Prophet
 import numpy as np
 from datetime import datetime
 
-# Configure Streamlit page
+# Configure Streamlit page with dramatic new title
 st.set_page_config(
-    page_title="African CO₂ Emissions Intelligence Dashboard",
+    page_title="🌍 AFRICA'S CLIMATE & POPULATION REVEALED: The Future in Data",
     layout="wide",
     page_icon="🌍",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for styling with vibrant colors
+# Custom CSS for modern styling with new color scheme
 st.markdown("""
 <style>
-    .main {
-        background-color: #f5f7fa;
+    :root {
+        --primary: #3498db;
+        --danger: #e74c3c;
+        --success: #2ecc71;
+        --warning: #f39c12;
+        --population: #9b59b6;
+        --climate: #1abc9c;
     }
-    .st-emotion-cache-1v0mbdj {
+    
+    .header-container {
+        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+        padding: 2.5rem;
         border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.2);
     }
-    .st-emotion-cache-1y4p8pa {
-        padding: 2rem 1rem;
-        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+    
+    .header-container h1 {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(90deg, #fff 0%, #1abc9c 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .header-text {
-        font-size: 2.5rem !important;
-        font-weight: 700 !important;
-        color: #2c3e50 !important;
-        margin-bottom: 0.5rem !important;
-        text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
-    }
-    .subheader-text {
-        font-size: 1.2rem !important;
-        font-weight: 400 !important;
-        color: #7f8c8d !important;
-        margin-bottom: 1.5rem !important;
-    }
+    
     .metric-card {
         background: white;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 6px 10px rgba(0, 0, 0, 0.08);
-        margin-bottom: 15px;
-        border-left: 4px solid #3498db;
-        transition: all 0.3s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
-    }
-    .metric-title {
-        font-size: 0.9rem;
-        color: #7f8c8d;
-        font-weight: 500;
-        margin-bottom: 5px;
-    }
-    .metric-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #2c3e50;
-    }
-    .metric-delta {
-        font-size: 0.8rem;
-        font-weight: 400;
-    }
-    .sector-card {
-        transition: all 0.3s ease;
-        cursor: pointer;
-        background: white;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 15px;
-    }
-    .sector-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
-    }
-    .selected-sector {
-        border: 3px solid #e74c3c !important;
-        box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.2);
-    }
-    .footer {
-        text-align: center;
+        border-radius: 15px;
         padding: 1.5rem;
-        color: #7f8c8d;
-        font-size: 0.9rem;
-        margin-top: 2rem;
-        background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
-        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        margin-bottom: 1.5rem;
+        border-top: 5px solid var(--primary);
+        transition: all 0.4s ease;
+        height: 100%;
     }
-    .stButton>button {
-        border: none;
-        background-color: #3498db;
-        color: white;
-        padding: 10px 20px;
-        text-align: center;
-        text-decoration: none;
+    
+    .metric-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+    }
+    
+    .population-card {
+        border-top: 5px solid var(--population);
+    }
+    
+    .climate-card {
+        border-top: 5px solid var(--climate);
+    }
+    
+    .alert-card {
+        background: #fff8f8;
+        border-left: 5px solid var(--danger);
+        padding: 1.2rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    
+    .insight-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9f5ff 100%);
+        border-radius: 12px;
+        padding: 1.8rem;
+        margin-bottom: 2rem;
+        border-left: 5px solid var(--success);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+    
+    .threshold-indicator {
         display: inline-block;
-        font-size: 16px;
-        margin: 4px 2px;
-        cursor: pointer;
-        border-radius: 8px;
-        transition: all 0.3s ease;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        margin-right: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .stButton>button:hover {
-        background-color: #2980b9;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    
+    .threshold-safe { background-color: var(--success); }
+    .threshold-warning { background-color: var(--warning); }
+    .threshold-danger { background-color: var(--danger); }
+    
+    .population-badge {
+        background-color: var(--population);
+        color: white;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin-left: 8px;
     }
-    .stSelectbox, .stSlider, .stRadio {
-        background-color: white;
-        border-radius: 8px;
-        padding: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    
+    .climate-badge {
+        background-color: var(--climate);
+        color: white;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin-left: 8px;
     }
-    .stExpander {
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 15px;
+    
+    .stSelectbox div[data-baseweb="select"] {
+        border-radius: 12px !important;
+        padding: 8px 12px !important;
     }
-    .stExpander:hover {
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    
+    .stSlider div[data-testid="stTickBar"] {
+        margin-top: 15px;
     }
-    .user-guide {
-        background-color: #f8f9fa;
-        border-left: 4px solid #3498db;
-        padding: 15px;
-        border-radius: 5px;
-        margin-bottom: 20px;
-        font-size: 0.95rem;
+    
+    .stSlider div[data-testid="stTickBar"] div {
+        background: var(--primary) !important;
     }
-    .recommendation-card {
-        background: white;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 15px;
-        border-left: 4px solid;
-        transition: all 0.3s ease;
-    }
-    .recommendation-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    
+    .stSlider div[role="slider"] {
+        background: var(--primary) !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Load data
+# Load data with enhanced caching and population metrics
 @st.cache_data
 def load_data():
     try:
-        # Load from local data folder
-        df = pd.read_csv("co2_Emission_Africa.csv")
+        url = "https://huggingface.co/spaces/NSamson1/Early-Warning-Airquality/raw/main/co2_Emission_Africa.csv"
+        df = pd.read_csv(url)
         df.columns = df.columns.str.strip()
         
-        # Ensure numeric columns are properly converted
-        numeric_cols = ['Total CO2 Emission including LUCF (Mt)', 'GDP PER CAPITA (USD)', 'Population',
-                       'Transportation (Mt)', 'Manufacturing/Construction (Mt)',
-                       'Land-Use Change and Forestry (Mt)', 'Industrial Processes (Mt)',
-                       'Energy (Mt)', 'Electricity/Heat (Mt)']
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-        return df.dropna()
+        # Define sector columns and convert to numeric
+        sector_cols = ['Transportation (Mt)', 'Manufacturing/Construction (Mt)',
+                      'Land-Use Change and Forestry (Mt)', 'Industrial Processes (Mt)',
+                      'Energy (Mt)', 'Electricity/Heat (Mt)']
+        
+        for col in sector_cols + ['Total CO2 Emission including LUCF (Mt)', 'GDP PER CAPITA (USD)', 'Population']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            # Advanced imputation by sub-region median
+            df[col] = df.groupby(['Sub-Region', 'Year'])[col].transform(
+                lambda x: x.fillna(x.median()))
+        
+        # Calculate derived metrics
+        df['Emissions per Capita'] = df['Total CO2 Emission including LUCF (Mt)'] / (df['Population'] / 1e6)
+        df['Emissions Intensity'] = df['Total CO2 Emission including LUCF (Mt)'] / df['GDP PER CAPITA (USD)']
+        df['Population Growth Rate'] = df.groupby('Country')['Population'].pct_change() * 100
+        
+        # Calculate population density (assuming area remains constant)
+        df['Population Density'] = df.groupby('Country')['Population'].transform(
+            lambda x: x / x.max() * 100)  # Normalized density
+        
+        return df.dropna(subset=['Country', 'Year'] + sector_cols)
+    
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        return pd.DataFrame()  # Return empty DataFrame if file not found
+        st.error(f"🚨 Data loading failed: {str(e)}")
+        return pd.DataFrame()
 
+# Load data
 df = load_data()
 
-# Show warning if data loading failed
-if df.empty:
-    st.warning("Failed to load data. Please ensure 'data/co2_Emission_Africa.csv' exists.")
-# Sidebar with filters
-with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Africa_%28orthographic_projection%29.svg/600px-Africa_%28orthographic_projection%29.svg.png", 
-             width=150, use_container_width=True)
-    st.title("Dashboard Controls")
-    
-    st.markdown("""
-    <div class="user-guide">
-        <strong>📌 How to use this dashboard:</strong>
-        <ol>
-            <li>Select a country from the dropdown</li>
-            <li>Adjust the year range as needed</li>
-            <li>Choose your analysis focus</li>
-            <li>Click on sector cards to explore details</li>
-        </ol>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    country = st.selectbox(
-        "🌍 Select Country", 
-        sorted(df['Country'].unique()),
-        index=sorted(df['Country'].unique()).index('Algeria') if 'Algeria' in df['Country'].unique() else 0
-    )
-    
-    year = st.slider(
-        "📅 Select Year Range",
-        min_value=2000,
-        max_value=2020,
-        value=(2000, 2020)
-    )
-    
-    analysis_type = st.radio(
-        "📊 Analysis Focus",
-        options=["Sector Breakdown", "Trend Analysis", "Comparative Analysis"],
-        index=0
-    )
-    
-    st.markdown("---")
-    st.markdown("""
-    **Data Sources:**
-    - World Bank Development Indicators
-    - Global Carbon Project
-    - UNEP Emissions Database
-    """)
-    
-    st.markdown("---")
-    st.markdown("""
-    **Dashboard Features:**
-    - Interactive visualizations
-    - Dynamic filtering
-    - Emission forecasting
-    - Sector comparisons
-    """)
+# Define sector thresholds (hypothetical values for demonstration)
+SECTOR_THRESHOLDS = {
+    'Transportation (Mt)': {'warning': 10, 'danger': 20},
+    'Manufacturing/Construction (Mt)': {'warning': 15, 'danger': 30},
+    'Energy (Mt)': {'warning': 25, 'danger': 50},
+    'Electricity/Heat (Mt)': {'warning': 10, 'danger': 20}
+}
 
-# Main content
-st.markdown(f'<h1 class="header-text">African CO₂ Emissions Intelligence Platform</h1>', unsafe_allow_html=True)
-st.markdown(f'<div class="subheader-text">Comprehensive analysis of carbon emissions across African nations</div>', unsafe_allow_html=True)
-
-# User guidance at the top
+# =============================================
+# Header Section with dramatic new title
+# =============================================
 st.markdown("""
-<div class="user-guide">
-    <strong>🔍 Explore the dashboard:</strong>
-    <ul>
-        <li>Start with the <strong>Key National Indicators</strong> below for an overview</li>
-        <li>Click on any <strong>sector card</strong> to see detailed trends</li>
-        <li>Use the <strong>comparative analysis tabs</strong> for deeper insights</li>
-        <li>Scroll down for <strong>tailored recommendations</strong> based on your selection</li>
-    </ul>
+<div class="header-container">
+    <h1>AFRICA'S CLIMATE & POPULATION REVEALED</h1>
+    <p style="font-size:1.2rem; color:rgba(255,255,255,0.9);">The hidden connections between demographic change and climate impact</p>
+    <div style="margin-top:1rem;">
+        <span class="population-badge">POPULATION DYNAMICS</span>
+        <span class="climate-badge">CLIMATE IMPACT</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
+
+# =============================================
+# Continent-Wide Insights - Now with Population
+# =============================================
+st.header("🌍 Continental Overview: People & Planet")
+
+# Key metrics row - now with population metrics
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    total_2020 = df[df['Year'] == 2020]['Total CO2 Emission including LUCF (Mt)'].sum()
+    st.metric("Total 2020 Emissions", f"{total_2020:,.0f} Mt", 
+              help="Sum across all African nations")
+with col2:
+    pop_2020 = df[df['Year'] == 2020]['Population'].sum() / 1e6
+    st.metric("2020 Population", f"{pop_2020:,.1f} Million", 
+              delta="+2.5% annual growth", 
+              help="Total population across Africa")
+with col3:
+    avg_growth = df.groupby('Country')['Total CO2 Emission including LUCF (Mt)'].apply(
+        lambda x: x.pct_change().mean()
+    ).mean() * 100
+    st.metric("Avg Emissions Growth", f"{avg_growth:.1f}%")
+with col4:
+    pop_growth = df.groupby('Country')['Population'].apply(
+        lambda x: x.pct_change().mean()
+    ).mean() * 100
+    st.metric("Avg Population Growth", f"{pop_growth:.1f}%")
+
+# NEW: Population-Emissions Scatter Plot with Time Animation
+st.subheader("🚀 The Population-Emissions Paradox")
+st.markdown("How population growth correlates with emissions growth across African nations")
+
+fig = px.scatter(df, 
+                 x='Population', 
+                 y='Total CO2 Emission including LUCF (Mt)',
+                 size='GDP PER CAPITA (USD)',
+                 color='Sub-Region',
+                 hover_name='Country',
+                 animation_frame='Year',
+                 animation_group='Country',
+                 log_x=True,
+                 size_max=45,
+                 range_x=[1e5,1e8],
+                 range_y=[0,500],
+                 template='plotly_dark',
+                 height=600)
+
+fig.update_layout(
+    title='Population vs CO2 Emissions Over Time',
+    xaxis_title='Population (log scale)',
+    yaxis_title='CO2 Emissions (Mt)',
+    showlegend=True
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# NEW: Population Growth vs Emissions Growth Parallel Analysis
+st.subheader("📊 Dual Analysis: Population & Emissions Trends")
+
+# Create two columns for parallel analysis
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### 🧑‍🤝‍🧑 Population Growth Leaders")
+    pop_growth_df = df.groupby('Country')['Population'].apply(
+        lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0] * 100
+    ).nlargest(10).reset_index(name='Growth %')
+    
+    fig = px.bar(pop_growth_df, 
+                 x='Country',
+                 y='Growth %',
+                 color='Growth %',
+                 color_continuous_scale='purples',
+                 title="Top 10 Population Growth Countries (2000-2020)")
+    st.plotly_chart(fig, use_container_width=True)
+
+with col2:
+    st.markdown("### 🏭 Emissions Growth Leaders")
+    emissions_growth_df = df.groupby('Country')['Total CO2 Emission including LUCF (Mt)'].apply(
+        lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0] * 100
+    ).nlargest(10).reset_index(name='Growth %')
+    
+    fig = px.bar(emissions_growth_df, 
+                 x='Country',
+                 y='Growth %',
+                 color='Growth %',
+                 color_continuous_scale='tealrose',
+                 title="Top 10 Emissions Growth Countries (2000-2020)")
+    st.plotly_chart(fig, use_container_width=True)
+
+# NEW: Stacked Bar Chart Showing Population and Emissions Growth Side by Side
+st.subheader("🧩 The Growth Puzzle: Population vs Emissions")
+
+# Prepare data for comparison
+comparison_df = df.groupby(['Year']).agg({
+    'Population': 'sum',
+    'Total CO2 Emission including LUCF (Mt)': 'sum'
+}).reset_index()
+
+# Normalize to percentage growth from 2000
+comparison_df['Population Growth'] = (comparison_df['Population'] / comparison_df['Population'].iloc[0] - 1) * 100
+comparison_df['Emissions Growth'] = (comparison_df['Total CO2 Emission including LUCF (Mt)'] / 
+                                    comparison_df['Total CO2 Emission including LUCF (Mt)'].iloc[0] - 1) * 100
+
+fig = go.Figure()
+
+fig.add_trace(go.Bar(
+    x=comparison_df['Year'],
+    y=comparison_df['Population Growth'],
+    name='Population Growth',
+    marker_color='#9b59b6',
+    opacity=0.8
+))
+
+fig.add_trace(go.Bar(
+    x=comparison_df['Year'],
+    y=comparison_df['Emissions Growth'],
+    name='Emissions Growth',
+    marker_color='#1abc9c',
+    opacity=0.8
+))
+
+fig.update_layout(
+    barmode='group',
+    title='Comparing Population and Emissions Growth (2000 Baseline)',
+    yaxis_title='Growth Percentage (%)',
+    hovermode='x unified',
+    height=500
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# =============================================
+# Country-Specific Analysis - Enhanced with Population
+# =============================================
+st.header("🔍 Deep Dive: Country-Level Insights")
+
+# Country selector with region filter
+regions = sorted(df['Sub-Region'].unique())
+selected_region = st.sidebar.selectbox("Filter by Region", ['All'] + regions, key='region_filter')
+if selected_region != 'All':
+    countries = sorted(df[df['Sub-Region'] == selected_region]['Country'].unique())
+else:
+    countries = sorted(df['Country'].unique())
+    
+selected_country = st.sidebar.selectbox("Select Country", countries, key='country_select')
+
+# Year range selector
+min_year = int(df['Year'].min())
+max_year = int(df['Year'].max())
+selected_years = st.sidebar.slider(
+    "Select Year Range",
+    min_value=min_year,
+    max_value=max_year,
+    value=(min_year, max_year),
+    key='year_slider'
+)
 
 # Filter data
-df_country = df[(df['Country'] == country) & (df['Year'] >= year[0]) & (df['Year'] <= year[1])]
-df_country_all_years = df[df['Country'] == country]
+country_data = df[(df['Country'] == selected_country) & 
+               (df['Year'] >= selected_years[0]) & 
+               (df['Year'] <= selected_years[1])].sort_values('Year')
 
-# Key metrics row
-st.subheader("🌱 Key National Indicators")
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.markdown(f"""
-    <div class="metric-card" style="border-left-color: #3498db;">
-        <div class="metric-title">Total CO₂ Emissions</div>
-        <div class="metric-value">{df_country['Total CO2 Emission including LUCF (Mt)'].mean():,.2f} Mt</div>
-        <div class="metric-delta">Last year: {df_country[df_country['Year'] == df_country['Year'].max() - 1]['Total CO2 Emission including LUCF (Mt)'].values[0]:,.2f} Mt</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f"""
-    <div class="metric-card" style="border-left-color: #2ecc71;">
-        <div class="metric-title">GDP per Capita</div>
-        <div class="metric-value">${df_country['GDP PER CAPITA (USD)'].mean():,.2f}</div>
-        <div class="metric-delta">Last year: ${df_country[df_country['Year'] == df_country['Year'].max() - 1]['GDP PER CAPITA (USD)'].values[0]:,.2f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""
-    <div class="metric-card" style="border-left-color: #9b59b6;">
-        <div class="metric-title">Population</div>
-        <div class="metric-value">{df_country['Population'].mean() / 1e6:,.1f}M</div>
-        <div class="metric-delta">Last year: {df_country[df_country['Year'] == df_country['Year'].max() - 1]['Population'].values[0] / 1e6:,.1f}M</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    emission_change = ((df_country[df_country['Year'] == df_country['Year'].max()]['Total CO2 Emission including LUCF (Mt)'].values[0] - 
-                       df_country[df_country['Year'] == df_country['Year'].max() - 1]['Total CO2 Emission including LUCF (Mt)'].values[0]) / 
-                      df_country[df_country['Year'] == df_country['Year'].max() - 1]['Total CO2 Emission including LUCF (Mt)'].values[0]) * 100
+if not country_data.empty:
+    latest_year = country_data['Year'].max()
+    latest_data = country_data[country_data['Year'] == latest_year].iloc[0]
     
-    st.markdown(f"""
-    <div class="metric-card" style="border-left-color: {'#e74c3c' if emission_change > 0 else '#2ecc71'};">
-        <div class="metric-title">Emission Change</div>
-        <div class="metric-value" style="color: {'#e74c3c' if emission_change > 0 else '#2ecc71'};">{abs(emission_change):.1f}%</div>
-        <div class="metric-delta">Year-over-year</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Sector breakdown with interactive cards
-st.subheader("🏭 Emission Sector Breakdown")
-st.markdown("""
-<div class="user-guide">
-    <strong>💡 Click on any sector card below</strong> to see its detailed trend analysis in the chart to the right.
-    The pie chart shows the current composition of emissions by sector.
-</div>
-""", unsafe_allow_html=True)
-
-sector_cols = [
-    "Transportation (Mt)",
-    "Manufacturing/Construction (Mt)",
-    "Land-Use Change and Forestry (Mt)",
-    "Industrial Processes (Mt)",
-    "Energy (Mt)",
-    "Electricity/Heat (Mt)"
-]
-
-# Vibrant color palette for sectors
-sector_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFBE0B', '#FF9F1C', '#8AC926']
-
-# Store selected sector in session state
-if 'selected_sector' not in st.session_state:
-    st.session_state.selected_sector = sector_cols[0]
-
-# Create sector cards with vibrant colors
-cols = st.columns(len(sector_cols))
-for i, col in enumerate(cols):
-    with col:
-        sector_value = df_country[sector_cols[i]].mean()
-        is_selected = st.session_state.selected_sector == sector_cols[i]
-        
-        # Card styling with hover effects
-        card_style = f"""
-            background: linear-gradient(135deg, {sector_colors[i]}20, white);
-            border-left: 4px solid {sector_colors[i]};
-            {'box-shadow: 0 0 15px ' + sector_colors[i] + '80;' if is_selected else ''}
-            transition: all 0.3s ease;
-            cursor: pointer;
-        """
-        
+    # Country header with key metrics - now with population
+    st.markdown(f"## {selected_country} Climate & Population Profile")
+    
+    # NEW: Dual metric cards for population and climate
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
         st.markdown(f"""
-        <div class="sector-card {'selected-sector' if is_selected else ''}" 
-             onclick="window.parent.document.querySelectorAll('.sector-btn')[{i}].click()"
-             style="{card_style}">
-            <div class="metric-title" style="color: {sector_colors[i]}; font-weight: 600;">
-                {sector_cols[i].split(' (')[0]}
-            </div>
-            <div class="metric-value" style="color: {sector_colors[i]}; font-size: 1.3rem;">
-                {sector_value:,.2f} Mt
-            </div>
-            <div class="metric-delta" style="color: {'#e74c3c' if sector_value > 0 else '#2ecc71'}">
-                {'▲' if sector_value > 0 else '▼'} from baseline
-            </div>
+        <div class="metric-card population-card">
+            <h3>Population</h3>
+            <p style="font-size: 2rem; color: #9b59b6;">{latest_data['Population']/1e6:,.1f}M</p>
+            <p>Growth: {country_data['Population Growth Rate'].iloc[-1]:.1f}% (2020)</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Hidden button for interactivity
-        if col.button("", key=f"sector_{i}", help=sector_cols[i]):
-            st.session_state.selected_sector = sector_cols[i]
-
-# Main visualization area
-st.markdown("---")
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Dynamic chart based on selected sector
-    if st.session_state.selected_sector:
-        st.subheader(f"📈 {st.session_state.selected_sector.split(' (')[0]} Emissions Trend")
+    
+    with col2:
         st.markdown(f"""
-        <div class="user-guide" style="margin-bottom: 15px;">
-            Showing trend for <strong>{st.session_state.selected_sector.split(' (')[0]}</strong> sector. 
-            The dashed red line shows the overall trend.
+        <div class="metric-card climate-card">
+            <h3>CO2 Emissions</h3>
+            <p style="font-size: 2rem; color: #1abc9c;">{latest_data['Total CO2 Emission including LUCF (Mt)']:,.1f} Mt</p>
+            <p>{latest_data['Emissions per Capita']:.2f} t/person</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        fig = px.line(
-            df_country_all_years,
-            x="Year",
-            y=st.session_state.selected_sector,
-            markers=True,
-            color_discrete_sequence=[sector_colors[sector_cols.index(st.session_state.selected_sector)]],
-            template="plotly_white",
-            line_shape="spline"
-        )
-        
-        fig.update_layout(
-            height=400,
-            xaxis_title="Year",
-            yaxis_title="Emissions (Mt)",
-            hovermode="x unified",
-            plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=20, r=20, t=40, b=20),
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        # Add trendline
-        fig.add_trace(
-            go.Scatter(
-                x=df_country_all_years["Year"],
-                y=np.poly1d(np.polyfit(
-                    df_country_all_years["Year"],
-                    df_country_all_years[st.session_state.selected_sector],
-                    1
-                ))(df_country_all_years["Year"]),
-                mode='lines',
-                name='Trend',
-                line=dict(color='#e74c3c', dash='dash', width=2)
-            )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    st.subheader("🥧 Sector Composition")
-    st.markdown("""
-    <div class="user-guide" style="margin-bottom: 15px;">
-        Current distribution of emissions across sectors. Hover over segments for details.
-    </div>
-    """, unsafe_allow_html=True)
     
-    try:
-        # Prepare data for pie chart
-        pie_data = df_country[sector_cols].mean().reset_index()
-        pie_data.columns = ['Sector', 'Value']
-        pie_data['Sector'] = pie_data['Sector'].str.replace(' (Mt)', '')
-        
-        fig_pie = px.pie(
-            pie_data,
-            values='Value',
-            names='Sector',
-            color_discrete_sequence=sector_colors,
-            hole=0.4,
-            template="plotly_white"
-        )
-        
-        fig_pie.update_layout(
-            height=400,
-            margin=dict(l=20, r=20, t=40, b=20),
-            showlegend=False,
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        fig_pie.update_traces(
-            textposition='inside',
-            textinfo='percent+label',
-            hovertemplate="<b>%{label}</b><br>%{value:.2f} Mt (%{percent})",
-            marker=dict(line=dict(color='#ffffff', width=1))
-        )
-        
-        st.plotly_chart(fig_pie, use_container_width=True)
-    except Exception as e:
-        st.error(f"Could not generate pie chart: {str(e)}")
-
-# Comparative analysis row
-st.markdown("---")
-st.subheader("🔍 Comparative Analysis")
-st.markdown("""
-<div class="user-guide">
-    Use these tabs to compare different aspects of emissions data:
-    <ul>
-        <li><strong>Sector Comparison</strong>: Compare trends between multiple sectors</li>
-        <li><strong>Emission Drivers</strong>: See how emissions correlate with economic factors</li>
-        <li><strong>Forecast</strong>: View projected emissions for the next 5 years</li>
-    </ul>
-</div>
-""", unsafe_allow_html=True)
-
-tab1, tab2, tab3 = st.tabs(["📊 Sector Comparison", "📈 Emission Drivers", "🔮 Forecast"])
-
-with tab1:
-    st.markdown("""
-    <div class="user-guide">
-        Select multiple sectors below to compare their emission trends over time.
-    </div>
-    """, unsafe_allow_html=True)
+    with col3:
+        # Safely calculate population growth since 2000
+        try:
+            pop_2000 = country_data[country_data['Year'] == 2000]['Population'].values[0]
+            pop_growth = ((latest_data['Population'] - pop_2000) / pop_2000) * 100
+            growth_text = f"+{pop_growth:.1f}%"
+        except (IndexError, KeyError):
+            growth_text = "N/A"
+            
+        st.markdown(f"""
+        <div class="metric-card">
+            <h3>Population Growth</h3>
+            <p style="font-size: 2rem; color: #9b59b6;">{growth_text}</p>
+            <p>Since 2000</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    selected_sectors = st.multiselect(
-        "Select sectors to compare",
-        options=sector_cols,
-        default=[sector_cols[0], sector_cols[-1]],
-        format_func=lambda x: x.split(' (')[0]
+    with col4:
+        # Safely calculate emissions growth since 2000
+        try:
+            emissions_2000 = country_data[country_data['Year'] == 2000]['Total CO2 Emission including LUCF (Mt)'].values[0]
+            emissions_growth = ((latest_data['Total CO2 Emission including LUCF (Mt)'] - emissions_2000) / emissions_2000) * 100
+            growth_text = f"+{emissions_growth:.1f}%"
+        except (IndexError, KeyError):
+            growth_text = "N/A"
+            
+        st.markdown(f"""
+        <div class="metric-card">
+            <h3>Emissions Growth</h3>
+            <p style="font-size: 2rem; color: #1abc9c;">{growth_text}</p>
+            <p>Since 2000</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # NEW: Side-by-side population and emissions trends
+    st.subheader("📈 Dual Trends: Population & Emissions Over Time")
+    
+    fig = go.Figure()
+    
+    # Add population trace (right y-axis)
+    fig.add_trace(go.Scatter(
+        x=country_data['Year'],
+        y=country_data['Population']/1e6,
+        name='Population (Millions)',
+        line=dict(color='#9b59b6', width=3),
+        yaxis='y'
+    ))
+    
+    # Add emissions trace (left y-axis)
+    fig.add_trace(go.Scatter(
+        x=country_data['Year'],
+        y=country_data['Total CO2 Emission including LUCF (Mt)'],
+        name='CO2 Emissions (Mt)',
+        line=dict(color='#1abc9c', width=3),
+        yaxis='y2'
+    ))
+    
+    fig.update_layout(
+        title=f"{selected_country}: Population vs Emissions",
+        xaxis_title='Year',
+        yaxis=dict(
+            title='Population (Millions)',
+            title_font=dict(color='#9b59b6'),
+            tickfont=dict(color='#9b59b6')
+        ),
+        yaxis2=dict(
+            title='CO2 Emissions (Mt)',
+            title_font=dict(color='#1abc9c'),
+            tickfont=dict(color='#1abc9c'),
+            overlaying='y',
+            side='right'
+        ),
+        hovermode='x unified',
+        height=500,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
     
-    if selected_sectors:
-        fig_compare = go.Figure()
-        
-        for sector in selected_sectors:
-            fig_compare.add_trace(
-                go.Scatter(
-                    x=df_country_all_years["Year"],
-                    y=df_country_all_years[sector],
-                    mode='lines+markers',
-                    name=sector.split(' (')[0],
-                    line=dict(width=3),
-                    marker=dict(size=8)
-                )
-            )
-        
-        fig_compare.update_layout(
-            height=400,
-            title="Sector Emissions Comparison Over Time",
-            xaxis_title="Year",
-            yaxis_title="Emissions (Mt)",
-            hovermode="x unified",
-            template="plotly_white",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        st.plotly_chart(fig_compare, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
-with tab2:
-    st.markdown("""
-    <div class="user-guide">
-        This heatmap shows how different factors correlate with each other. 
-        Red indicates positive correlation, blue indicates negative correlation.
-    </div>
-    """, unsafe_allow_html=True)
+    # Sectoral analysis with pie chart and threshold warnings
+    st.subheader("🏭 Sectoral Breakdown with Threshold Monitoring")
     
-    heatmap_cols = sector_cols + [
-        'GDP PER CAPITA (USD)',
-        'Population',
-        'Total CO2 Emission including LUCF (Mt)'
-    ]
+    sector_cols = ['Transportation (Mt)', 'Manufacturing/Construction (Mt)', 
+                  'Energy (Mt)', 'Electricity/Heat (Mt)']
     
-    try:
-        corr_df = df_country[heatmap_cols].corr()
-        
-        fig_heatmap = go.Figure(
-            go.Heatmap(
-                z=corr_df.values,
-                x=corr_df.columns.str.replace(' (Mt)', ''),
-                y=corr_df.columns.str.replace(' (Mt)', ''),
-                colorscale='RdYlBu_r',
-                zmin=-1,
-                zmax=1,
-                hoverongaps=False,
-                text=corr_df.round(2).values,
-                texttemplate="%{text}",
-                colorbar=dict(title='Correlation')
-            )
-        )
-        
-        fig_heatmap.update_layout(
-            height=500,
-            title="Correlation Between Emissions and Economic Indicators",
-            xaxis_title="Variables",
-            yaxis_title="Variables",
-            template="plotly_white",
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-    except Exception as e:
-        st.error(f"Could not generate correlation heatmap: {str(e)}")
-
-with tab3:
-    st.markdown("""
-    <div class="user-guide">
-        This forecast predicts emissions for the next 5 years based on historical trends.
-        The shaded area represents a possible range of values.
-    </div>
-    """, unsafe_allow_html=True)
+    latest_sectors = country_data[country_data['Year'] == latest_year][sector_cols].iloc[0]
     
-    try:
-        # Prepare data for forecasting
-        forecast_years = list(range(df_country['Year'].max() + 1, df_country['Year'].max() + 6))
+    # Create two columns layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Enhanced 3D Pie chart showing sector contributions
+        fig = go.Figure(go.Pie(
+            labels=[s.replace(' (Mt)', '') for s in sector_cols],
+            values=latest_sectors.values,
+            hole=0.5,
+            pull=[0.1 if i == latest_sectors.idxmax() else 0 for i in sector_cols],
+            marker_colors=['#FFA07A', '#20B2AA', '#9370DB', '#FFD700'],
+            textinfo='percent+label+value',
+            textposition='inside',
+            insidetextorientation='radial'
+        ))
         
-        # Simple forecasting model
-        X = df_country_all_years[['Year']]
-        y = df_country_all_years['Total CO2 Emission including LUCF (Mt)']
-        
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        model.fit(X, y)
-        
-        future_X = pd.DataFrame({'Year': forecast_years})
-        future_y = model.predict(future_X)
-        
-        # Create forecast dataframe
-        forecast_df = pd.DataFrame({
-            'Year': list(df_country_all_years['Year']) + forecast_years,
-            'Emissions': list(df_country_all_years['Total CO2 Emission including LUCF (Mt)']) + list(future_y),
-            'Type': ['Historical'] * len(df_country_all_years) + ['Forecast'] * len(forecast_years)
-        })
-        
-        # Create the plot
-        fig_forecast = go.Figure()
-        
-        # Historical data
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=df_country_all_years['Year'],
-                y=df_country_all_years['Total CO2 Emission including LUCF (Mt)'],
-                mode='lines+markers',
-                name='Historical',
-                line=dict(color='#3498db', width=3),
-                marker=dict(size=8, color='#3498db')
-            )
-        )
-        
-        # Forecast data
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=forecast_years,
-                y=future_y,
-                mode='lines+markers',
-                name='Forecast',
-                line=dict(color='#e74c3c', width=3, dash='dot'),
-                marker=dict(size=8, color='#e74c3c', symbol='diamond')
-            )
-        )
-        
-        # Confidence interval (example)
-        fig_forecast.add_trace(
-            go.Scatter(
-                x=forecast_years + forecast_years[::-1],
-                y=list(future_y * 1.1) + list(future_y * 0.9)[::-1],
-                fill='toself',
-                fillcolor='rgba(231, 76, 60, 0.2)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                showlegend=False
-            )
-        )
-        
-        fig_forecast.update_layout(
+        fig.update_layout(
+            title=f"<b>Sector Contribution in {latest_year}</b>",
+            title_font=dict(size=18),
+            showlegend=False,
             height=400,
-            title="Total CO₂ Emissions Forecast",
-            xaxis_title="Year",
-            yaxis_title="Emissions (Mt)",
-            hovermode="x unified",
-            template="plotly_white",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            margin=dict(t=80, b=0, l=0, r=0),
+            annotations=[dict(
+                text=f"Total: {latest_sectors.sum():.1f} Mt",
+                x=0.5, y=0.5,
+                font_size=16,
+                showarrow=False
+            )]
         )
-        
-        st.plotly_chart(fig_forecast, use_container_width=True)
-        
-        # Display forecast values
-        st.markdown("""
-        <div class="user-guide">
-            <strong>Forecasted Values:</strong> Below are the predicted emissions for the next 5 years.
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("### Sector Threshold Status")
+        # Threshold cards with labels - organized in a grid
+        cols = st.columns(2)
+        for idx, (sector, value) in enumerate(latest_sectors.items()):
+            if sector in SECTOR_THRESHOLDS:
+                if value > SECTOR_THRESHOLDS[sector]['danger']:
+                    status = "danger"
+                    alert = "🚨 Dangerous levels"
+                    color = "#FF6B6B"
+                elif value > SECTOR_THRESHOLDS[sector]['warning']:
+                    status = "warning"
+                    alert = "⚠️ Warning levels"
+                    color = "#FFD166"
+                else:
+                    status = "safe"
+                    alert = "✅ Within safe limits"
+                    color = "#06D6A0"
+                
+                with cols[idx % 2]:
+                    st.markdown(f"""
+                    <div style="background: white; border-radius: 15px; padding: 1rem; 
+                                margin-bottom: 1rem; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                                border-left: 5px solid {color};">
+                        <h3 style="margin-top: 0; color: {color};">{sector.replace(' (Mt)', '')}</h3>
+                        <p style="font-size: 1.5rem; margin-bottom: 0.5rem;">{value:,.1f} Mt</p>
+                        <p style="margin-bottom: 0.5rem;"><span style="background-color: {color}; 
+                            width: 12px; height: 12px; border-radius: 50%; display: inline-block;"></span> {alert}</p>
+                        <div style="font-size: 0.8rem; color: #666;">
+                            <span style="color: #FFD166;">Warning: {SECTOR_THRESHOLDS[sector]['warning']} Mt</span><br>
+                            <span style="color: #FF6B6B;">Danger: {SECTOR_THRESHOLDS[sector]['danger']} Mt</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    # Time series for each sector
+    st.subheader("📊 Sector Trends Over Time")
+    sector = st.selectbox("Select sector to analyze", sector_cols, key='sector_select')
+    
+    fig = px.line(country_data, 
+                  x='Year', 
+                  y=sector,
+                  title=f"{sector.replace(' (Mt)', '')} Trend in {selected_country}",
+                  markers=True)
+    
+    # Add threshold lines if defined
+    if sector in SECTOR_THRESHOLDS:
+        fig.add_hline(y=SECTOR_THRESHOLDS[sector]['warning'], 
+                      line_dash="dot", 
+                      annotation_text=f"Warning: {SECTOR_THRESHOLDS[sector]['warning']} Mt", 
+                      line_color="orange",
+                      annotation_position="bottom right")
+        fig.add_hline(y=SECTOR_THRESHOLDS[sector]['danger'], 
+                      line_dash="dash", 
+                      annotation_text=f"Danger: {SECTOR_THRESHOLDS[sector]['danger']} Mt", 
+                      line_color="red",
+                      annotation_position="top right")
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+    # =============================================
+    # Policy Insights Section - Enhanced with Population
+    # =============================================
+    st.header("💡 Actionable Insights for Policymakers")
+    
+    # Generate dynamic recommendations based on data
+    latest = country_data[country_data['Year'] == latest_year].iloc[0]
+    recommendations = []
+    
+    # Population-based recommendations
+    pop_growth = country_data['Population Growth Rate'].mean()
+    if pop_growth > 2.5:
+        recommendations.append(
+            "👶 **High Population Growth**: Invest in family planning education and women's empowerment programs "
+            f"(current growth: {pop_growth:.1f}%)"
+        )
+    
+    # Transportation recommendations
+    if latest['Transportation (Mt)'] > SECTOR_THRESHOLDS['Transportation (Mt)']['warning']:
+        recommendations.append(
+            "🚗 **Transportation**: Implement electric vehicle incentives and improve public transit "
+            f"(current: {latest['Transportation (Mt)']:,.1f} Mt)"
+        )
+    
+    # Energy recommendations
+    if latest['Energy (Mt)'] > SECTOR_THRESHOLDS['Energy (Mt)']['warning']:
+        recommendations.append(
+            "⚡ **Energy**: Accelerate renewable energy adoption and phase out coal plants "
+            f"(current: {latest['Energy (Mt)']:,.1f} Mt)"
+        )
+    
+    # Urbanization recommendations
+    if latest['Population Density'] > 70:  # Assuming normalized density
+        recommendations.append(
+            "🏙️ **Urbanization**: Develop green cities with sustainable infrastructure and public spaces"
+        )
+    
+    if recommendations:
+        st.markdown(f"""
+        <div class="insight-card">
+            <h3>Priority Actions for {selected_country}</h3>
+            <ul>
+                {"".join([f"<li>{rec}</li>" for rec in recommendations])}
+            </ul>
         </div>
         """, unsafe_allow_html=True)
-        
-        st.dataframe(
-            pd.DataFrame({
-                'Year': forecast_years,
-                'Forecasted Emissions (Mt)': future_y,
-                'Change from Last Year (%)': [((future_y[i] - (future_y[i-1] if i > 0 else df_country_all_years['Total CO2 Emission including LUCF (Mt)'].iloc[-1])) / 
-                                            (future_y[i-1] if i > 0 else df_country_all_years['Total CO2 Emission including LUCF (Mt)'].iloc[-1])) * 100 
-                                           for i in range(len(future_y))]
-            }).set_index('Year').style.format({
-                'Forecasted Emissions (Mt)': '{:,.2f}',
-                'Change from Last Year (%)': '{:,.1f}%'
-            }).background_gradient(cmap='YlOrRd'),
-            use_container_width=True
-        )
-    except Exception as e:
-        st.error(f"Could not generate forecast: {str(e)}")
+    else:
+        st.success("All indicators are within sustainable thresholds. Maintain current policies.")
 
-# Recommendations section - Always visible
-st.markdown("---")
-st.subheader("💡 Sustainable Development Recommendations")
-st.markdown("""
-<div class="user-guide">
-    Based on the current analysis, here are tailored recommendations for sustainable development.
-    These suggestions are automatically adjusted based on your country and sector selections.
+# =============================================
+# Footer
+# =============================================
+st.markdown(f"""
+<div style="text-align: center; margin-top: 4rem; color: #7f8c8d; font-size: 0.9rem;">
+    <p>AFRICA CLIMATE & POPULATION INSIGHTS | Developed for sustainable development</p>
+    <p>Data sources: Global Carbon Project, World Bank, UN Population Division | Updated: {datetime.now().strftime("%B %d, %Y")}</p>
 </div>
 """, unsafe_allow_html=True)
-
-rec_col1, rec_col2 = st.columns(2)
-
-with rec_col1:
-    # Green Energy Initiatives (always visible)
-    st.markdown("""
-    <div class="recommendation-card" style="border-left-color: #2ecc71;">
-        <h4 style="color: #27ae60; margin-top: 0;">🌿 Green Energy Initiatives</h4>
-        <ul style="color: #2c3e50;">
-            <li><strong>Solar Energy Expansion</strong>: Invest in utility-scale solar farms in the Sahara region</li>
-            <li><strong>Wind Power Development</strong>: Harness coastal wind resources for clean energy</li>
-            <li><strong>Grid Modernization</strong>: Implement smart grid technologies to reduce transmission losses</li>
-            <li><strong>Energy Storage</strong>: Develop battery storage systems to manage renewable intermittency</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Sustainable Urban Development (always visible)
-    st.markdown("""
-    <div class="recommendation-card" style="border-left-color: #3498db;">
-        <h4 style="color: #2980b9; margin-top: 0;">🏙️ Sustainable Urban Development</h4>
-        <ul style="color: #2c3e50;">
-            <li><strong>Electric Public Transit</strong>: Transition bus fleets to electric vehicles</li>
-            <li><strong>Bike Infrastructure</strong>: Build protected bike lanes in major cities</li>
-            <li><strong>Green Building Standards</strong>: Mandate energy-efficient construction practices</li>
-            <li><strong>Urban Greening</strong>: Increase tree canopy coverage in urban areas</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-with rec_col2:
-    # Industrial Efficiency Programs (always visible)
-    st.markdown("""
-    <div class="recommendation-card" style="border-left-color: #f39c12;">
-        <h4 style="color: #d35400; margin-top: 0;">🏭 Industrial Efficiency Programs</h4>
-        <ul style="color: #2c3e50;">
-            <li><strong>Carbon Capture</strong>: Pilot CCS technologies in cement and steel plants</li>
-            <li><strong>Process Optimization</strong>: Implement AI-driven efficiency systems</li>
-            <li><strong>Waste Heat Recovery</strong>: Capture and reuse industrial waste heat</li>
-            <li><strong>Circular Economy</strong>: Promote industrial symbiosis and material reuse</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Land Use & Forestry (always visible)
-    st.markdown("""
-    <div class="recommendation-card" style="border-left-color: #27ae60;">
-        <h4 style="color: #16a085; margin-top: 0;">🌳 Land Use & Forestry</h4>
-        <ul style="color: #2c3e50;">
-            <li><strong>Reforestation</strong>: Restore degraded lands with native species</li>
-            <li><strong>Agroforestry</strong>: Integrate trees into agricultural systems</li>
-            <li><strong>Soil Carbon</strong>: Promote regenerative agricultural practices</li>
-            <li><strong>Fire Management</strong>: Implement early warning systems for wildfires</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-# Footer
-st.markdown("---")
-st.markdown("""
-<div class="footer">
-    <strong style="color: #2c3e50; font-size: 1.1rem;">African CO₂ Emissions Intelligence Platform</strong><br>
-    <span style="color: #7f8c8d;">Developed by Best Reseacher Samson Niyizurugero , my Insitutution is AIMS Reseach and Innovation center  • Data updated: {date}</span><br>
-    <span style="color: #95a5a6;">© {year} All Rights Reserved</span>
-</div>
-""".format(
-    date=datetime.now().strftime("%B %d, %Y"),
-    year=datetime.now().year
-), unsafe_allow_html=True)
