@@ -628,6 +628,7 @@ if not country_data.empty:
 st.markdown(f"""
 <div style="text-align: center; margin-top: 4rem; color: #7f8c8d; font-size: 0.9rem;">
     <p>AFRICA CLIMATE & POPULATION INSIGHTS | Developed for sustainable development</p>
+    <p> Developed by researcher Samson Niyizurugero, with support from AGNES (African Group of Negotiators Experts) and AIMS Rwanda<p>
     <p>Data sources: Global Carbon Project, World Bank, UN Population Division | Updated: {datetime.now().strftime("%B %d, %Y")}</p>
 </div>
 """, unsafe_allow_html=True)
